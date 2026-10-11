@@ -1,0 +1,70 @@
+{
+    "name": "malzariey/filament-ga4-analytics",
+    "description": "A Google Analytics 4 reports page for Filament panels: live visitors, KPIs, funnel, events, breakdowns and traffic sources, read through the GA4 Data API with a read-only service account.",
+    "keywords": [
+        "Malzariey",
+        "laravel",
+        "filament",
+        "google-analytics",
+        "ga4",
+        "filament-ga4-analytics"
+    ],
+    "homepage": "https://github.com/malzariey/filament-ga4-analytics",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Majid Al-Zariey",
+            "email": "malzariey@gmail.com",
+            "role": "Developer"
+        }
+    ],
+    "require": {
+        "php": "^8.3",
+        "filament/filament": "^5.0",
+        "illuminate/contracts": "^12.0|^13.0",
+        "malzariey/filament-daterangepicker-filter": "^5.0.7",
+        "spatie/laravel-package-tools": "^1.16.4"
+    },
+    "require-dev": {
+        "larastan/larastan": "^3.0",
+        "laravel/pint": "^1.27",
+        "orchestra/testbench": "^10.0|^11.0",
+        "pestphp/pest": "^4.0",
+        "pestphp/pest-plugin-laravel": "^4.0",
+        "pestphp/pest-plugin-livewire": "^4.0"
+    },
+    "suggest": {
+        "ext-intl": "Names countries in the page language (GA answers in English only)."
+    },
+    "autoload": {
+        "psr-4": {
+            "Malzariey\\FilamentGa4Analytics\\": "src"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Malzariey\\FilamentGa4Analytics\\Tests\\": "tests"
+        }
+    },
+    "scripts": {
+        "test": "pest",
+        "analyse": "phpstan analyse",
+        "format": "pint"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "pestphp/pest-plugin": true,
+            "php-http/discovery": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Malzariey\\FilamentGa4Analytics\\FilamentGa4AnalyticsServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}
