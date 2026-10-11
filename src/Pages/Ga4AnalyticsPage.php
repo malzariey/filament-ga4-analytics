@@ -17,6 +17,7 @@ use Illuminate\Contracts\Support\Htmlable;
 use Livewire\Attributes\Url;
 use Malzariey\FilamentDaterangepickerFilter\Fields\DateRangePicker;
 use Malzariey\FilamentGa4Analytics\Client\DataClient;
+use Malzariey\FilamentGa4Analytics\Exceptions\AnalyticsUnavailable;
 use Malzariey\FilamentGa4Analytics\Ga4AnalyticsPlugin;
 use Malzariey\FilamentGa4Analytics\Reports\AnalyticsReports;
 use Malzariey\FilamentGa4Analytics\Support\DateRange;
@@ -154,7 +155,7 @@ class Ga4AnalyticsPage extends Page implements HasForms
         $plugin = static::plugin();
         $property = $plugin->getPropertyId();
 
-        if (! $plugin->showsGoogleLink() || $property === null) {
+        if (! $plugin->showsGoogleLink() || $property === null || ! $plugin->isEnabled()) {
             return [];
         }
 
@@ -213,7 +214,13 @@ class Ga4AnalyticsPage extends Page implements HasForms
             return [];
         }
 
-        return $this->reports()->realtime(static::plugin()->getPropertyId());
+        $plugin = static::plugin();
+
+        if (! $plugin->isEnabled()) {
+            return AnalyticsReports::failure(AnalyticsUnavailable::DISABLED);
+        }
+
+        return $this->reports()->realtime($plugin->getPropertyId(), $plugin->getRealtimeBreakdowns());
     }
 
     /** @return array<string, mixed> */
@@ -224,6 +231,10 @@ class Ga4AnalyticsPage extends Page implements HasForms
         }
 
         $plugin = static::plugin();
+
+        if (! $plugin->isEnabled()) {
+            return AnalyticsReports::failure(AnalyticsUnavailable::DISABLED);
+        }
 
         return $this->reports()->summary($plugin->getPropertyId(), $this->dateRange(), $plugin->getReportPlan(), $plugin->getTimezone());
     }
@@ -237,7 +248,19 @@ class Ga4AnalyticsPage extends Page implements HasForms
 
         $plugin = static::plugin();
 
-        return $this->reports()->staff($plugin->getStaffPropertyId(), $this->dateRange(), $plugin->getTimezone());
+        if (! $plugin->isEnabled()) {
+            return AnalyticsReports::failure(AnalyticsUnavailable::DISABLED);
+        }
+
+        return $this->reports()->staff($plugin->getStaffPropertyId(), $this->dateRange(), $plugin->getTimezone(), $plugin->getStaffEventPrefix());
+    }
+
+    /** A live figure's link, dated today in the page's zone (`live:<key>`). */
+    public function liveLinkFor(string $key, string $value): ?string
+    {
+        $today = CarbonImmutable::now(static::plugin()->getTimezone())->format('Y-m-d');
+
+        return $this->linkFor('live:'.$key, [$today, $today], $value);
     }
 
     /** @param  array{0: string, 1: string}  $range */

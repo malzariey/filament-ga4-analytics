@@ -90,6 +90,13 @@ class Ga4AnalyticsPlugin implements Plugin
 
     protected int $realtimePollSeconds = 30;
 
+    /** @var list<Breakdown> */
+    protected array $realtimeBreakdowns = [];
+
+    protected ?string $staffEventPrefix = null;
+
+    protected bool|Closure $enabled = true;
+
     protected ?Closure $linkUsing = null;
 
     /** @var array<string, string>|Closure|null */
@@ -241,6 +248,19 @@ class Ga4AnalyticsPlugin implements Plugin
         return $this;
     }
 
+    /**
+     * Whether the page may read GA at all here. False answers every report
+     * with «disabled» (`errors.disabled`) and calls nobody — for a staging or
+     * local copy that carries production's settings, which must not read (and
+     * spend the quota of) the live property.
+     */
+    public function enabled(bool|Closure $enabled = true): static
+    {
+        $this->enabled = $enabled;
+
+        return $this;
+    }
+
     // ── Reports ───────────────────────────────────────────────────────────
 
     /** @param  array<int, Kpi|string>  $kpis */
@@ -272,6 +292,31 @@ class Ga4AnalyticsPlugin implements Plugin
     public function breakdowns(array $breakdowns): static
     {
         $this->breakdowns = array_values($breakdowns);
+
+        return $this;
+    }
+
+    /**
+     * Extra lists in the live card, under the pages on screen — any realtime
+     * dimension, or a user-scoped custom dimension (`customUser:…`). Links
+     * come through `linkUsing()` as `live:<key>`, dated today.
+     *
+     * @param  array<int, Breakdown>  $breakdowns
+     */
+    public function realtimeBreakdowns(array $breakdowns): static
+    {
+        $this->realtimeBreakdowns = array_values($breakdowns);
+
+        return $this;
+    }
+
+    /**
+     * Keep the staff tab's events list to names starting with this prefix
+     * (e.g. `staff_`), so GA's automatic events do not crowd out the host's.
+     */
+    public function staffEventPrefix(?string $prefix): static
+    {
+        $this->staffEventPrefix = $prefix === '' ? null : $prefix;
 
         return $this;
     }
@@ -479,6 +524,22 @@ class Ga4AnalyticsPlugin implements Plugin
     public function getRealtimePollSeconds(): int
     {
         return $this->realtimePollSeconds;
+    }
+
+    /** @return list<Breakdown> */
+    public function getRealtimeBreakdowns(): array
+    {
+        return $this->realtimeBreakdowns;
+    }
+
+    public function getStaffEventPrefix(): ?string
+    {
+        return $this->staffEventPrefix;
+    }
+
+    public function isEnabled(): bool
+    {
+        return (bool) $this->evaluate($this->enabled);
     }
 
     public function linkFor(string $figure, string $from, string $until, ?string $value = null): ?string

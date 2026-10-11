@@ -76,11 +76,33 @@ Ga4AnalyticsPlugin::make()
         default => null,
     })
     ->staffPropertyId(fn () => '987654321')           // adds a «staff» tab
+    ->staffEventPrefix('staff_')                      // staff tab lists only your own events
+    ->realtimeBreakdowns([                            // extra lists in the live card
+        Breakdown::make('items_now')
+            ->dimension('customUser:last_item_viewed') // realtime or user-scoped custom dimension
+            ->hideNotSet()
+            ->label('Items on screen now')
+            ->emptyLabel('No items on screen now')
+            // GA answers 400 until the custom dimension is registered: show
+            // something derived from the live page titles meanwhile.
+            ->fallbackUsing(fn (array $pages) => $myCodesFromTitles($pages)),
+    ])
+    ->enabled(fn () => app()->isProduction())         // off: every report says «disabled», calls nobody
     ->realtime(true, pollSeconds: 30)
     ->currency('SAR')
     ->timezone('Asia/Riyadh')
     ->firstDayOfWeek(6);                              // Saturday
 ```
+
+Live lists link through `linkUsing()` as `live:<key>` (dated today); staff
+events as `staff_event:<name>`. A live list whose own request GA refuses (other
+than for quota) falls back to its `fallbackUsing()` closure, or to an empty
+list — the rest of the live card stays up.
+
+To reword the page for one host (a funnel heading, a KPI name, an error that
+names your own settings page), override only those keys in
+`lang/vendor/filament-ga4-analytics/{ar,en}/analytics.php` — Laravel merges
+them over the package's.
 
 ## Loading behaviour
 

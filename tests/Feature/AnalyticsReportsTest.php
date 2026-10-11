@@ -150,3 +150,88 @@ it('forgets every cached report when the host asks', function (): void {
 
     expect(count($fake->requests))->toBe($calls * 2);
 });
+
+/** A client that refuses one realtime dimension with `$reason` and answers the rest from the fake. */
+function refusingDimension(string $dimension, string $reason): DataClient
+{
+    return new class($dimension, $reason) implements DataClient
+    {
+        private FakeDataClient $fake;
+
+        public function __construct(private string $dimension, private string $reason)
+        {
+            $this->fake = new FakeDataClient;
+        }
+
+        public function runReport(string $propertyId, array $body): array
+        {
+            return $this->fake->runReport($propertyId, $body);
+        }
+
+        public function runRealtimeReport(string $propertyId, array $body): array
+        {
+            if (($body['dimensions'][0]['name'] ?? null) === $this->dimension) {
+                throw new AnalyticsUnavailable($this->reason, 'runRealtimeReport: HTTP 400');
+            }
+
+            return $this->fake->runRealtimeReport($propertyId, $body);
+        }
+
+        public function withAccount(?ServiceAccount $account): static
+        {
+            return $this;
+        }
+    };
+}
+
+it('adds the host live lists, dropping (not set), under their own keys', function (): void {
+    [$fake, $reports] = fakeReports();
+
+    $live = $reports->realtime('123456789', [Breakdown::make('cities_now')->dimension('city')->hideNotSet()->limit(3)]);
+
+    expect($live['ok'])->toBeTrue()
+        ->and(array_column($live['breakdowns']['cities_now'], 'label'))->toBe(['Jeddah', 'Riyadh', 'Makkah'])
+        ->and(collect($fake->requests)->where('method', 'runRealtimeReport')->pluck('body.dimensions.0.name')->all())->toContain('city');
+});
+
+it('falls back to the host closure when GA refuses a live list, keeping the card standing', function (): void {
+    $reports = app(AnalyticsReports::class)->withClient(refusingDimension('customUser:last_item', AnalyticsUnavailable::FAILED));
+    $seen = null;
+
+    $live = $reports->realtime('123456789', [
+        Breakdown::make('items')->dimension('customUser:last_item')->fallbackUsing(function (array $pages) use (&$seen): array {
+            $seen = $pages;
+
+            return [['label' => 'From titles', 'value' => 3]];
+        }),
+        Breakdown::make('plain')->dimension('customUser:last_item'),
+    ]);
+
+    expect($live['ok'])->toBeTrue()
+        ->and($live['breakdowns']['items'])->toBe([['label' => 'From titles', 'value' => 3]])
+        ->and($live['breakdowns']['plain'])->toBe([])
+        ->and(array_column($seen, 'label'))->toContain('Home');
+});
+
+it('never covers a quota refusal with a fallback', function (): void {
+    $reports = app(AnalyticsReports::class)->withClient(refusingDimension('customUser:last_item', AnalyticsUnavailable::QUOTA));
+
+    $live = $reports->realtime('123456789', [
+        Breakdown::make('items')->dimension('customUser:last_item')->fallbackUsing(fn (): array => [['label' => 'x', 'value' => 1]]),
+    ]);
+
+    expect($live)->toBe(['ok' => false, 'error' => AnalyticsUnavailable::QUOTA]);
+});
+
+it('keeps the staff events to the host prefix, and caches each prefix apart', function (): void {
+    [$fake, $reports] = fakeReports();
+
+    $all = $reports->staff('555555555', DateRange::preset('7d'), 'UTC');
+    $mine = $reports->staff('555555555', DateRange::preset('7d'), 'UTC', 'staff_');
+
+    $filters = collect($fake->requests)->pluck('body.dimensionFilter.filter.stringFilter')->filter()->values()->all();
+
+    expect(array_column($all['events'], 'event'))->toContain('page_view')
+        ->and(array_column($mine['events'], 'event'))->each->toStartWith('staff_')
+        ->and($filters)->toBe([['matchType' => 'BEGINS_WITH', 'value' => 'staff_']]);
+});

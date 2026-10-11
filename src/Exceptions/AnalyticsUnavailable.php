@@ -20,6 +20,13 @@ final class AnalyticsUnavailable extends RuntimeException
     /** No property id: the host has not set one up. */
     public const string NOT_CONFIGURED = 'not_configured';
 
+    /**
+     * The host switched reading off here (`Ga4AnalyticsPlugin::enabled(false)`)
+     * — typically every environment but production, so a staging copy of the
+     * production settings does not read, and spend, the live property.
+     */
+    public const string DISABLED = 'disabled';
+
     /** No usable service-account key. */
     public const string NO_CREDENTIALS = 'no_credentials';
 
@@ -34,6 +41,7 @@ final class AnalyticsUnavailable extends RuntimeException
 
     public const array REASONS = [
         self::NOT_CONFIGURED,
+        self::DISABLED,
         self::NO_CREDENTIALS,
         self::FORBIDDEN,
         self::QUOTA,

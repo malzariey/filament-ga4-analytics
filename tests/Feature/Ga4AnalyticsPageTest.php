@@ -293,3 +293,54 @@ it('splits seven tiles into balanced rows, in the skeleton and the loaded page a
     $this->get(Ga4AnalyticsPage::getUrl())->assertSee($columns, false);
     loadedPage()->assertSee($columns, false);
 });
+
+it('reads nothing and says so when the host switches reading off', function (): void {
+    $fake = fakeClient();
+    plugin()->enabled(fn (): bool => false)->staffPropertyId('555555555');
+    $this->actingAs(allowedUser());
+
+    loadedPage()
+        ->assertSee(__('filament-ga4-analytics::analytics.errors.disabled'))
+        ->assertDontSee(__('filament-ga4-analytics::analytics.open_in_google'))
+        ->assertDontSee('data-testid="ga4-kpis"', false)
+        ->call('setTab', 'staff')
+        ->assertSee('data-testid="ga4-staff-error"', false);
+
+    expect($fake->requests)->toBe([]);
+});
+
+it('draws the host live lists with their own empty text and live links', function (): void {
+    fakeClient();
+    plugin()
+        ->realtimeBreakdowns([
+            Breakdown::make('cities_now')->dimension('city')->hideNotSet()->label('Cities now')->limit(3),
+            Breakdown::make('nothing_now')->dimension('customUser:unknown')->hideNotSet()->label('Items now')->emptyLabel('No items on screen'),
+        ])
+        ->linkUsing(fn (string $figure, string $from, string $until, ?string $value) => $figure === 'live:cities_now'
+            ? "https://host.test/cities?name={$value}&day={$from}"
+            : null);
+    $this->actingAs(allowedUser());
+
+    $today = now('Asia/Riyadh')->format('Y-m-d');
+
+    // The skeleton reserves the same lists, so nothing jumps on load.
+    $this->get(Ga4AnalyticsPage::getUrl())->assertSee('Cities now')->assertSee('Items now');
+
+    loadedPage()
+        ->assertSee('data-testid="ga4-live-cities_now"', false)
+        ->assertSee("https://host.test/cities?name=Jeddah&amp;day={$today}", false)
+        ->assertSee('No items on screen');
+});
+
+it('lists only the host staff events when a prefix is set', function (): void {
+    fakeClient();
+    plugin()->staffPropertyId('555555555')->staffEventPrefix('staff_')
+        ->eventLabels(fn (string $event): ?string => $event === 'staff_approve' ? 'Approved a request' : null);
+    $this->actingAs(allowedUser());
+
+    loadedPage()
+        ->call('setTab', 'staff')
+        ->assertSee('Approved a request')
+        ->assertSee('staff_export')
+        ->assertDontSee(__('filament-ga4-analytics::analytics.events.session_start'));
+});

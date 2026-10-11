@@ -58,6 +58,22 @@
                             <div>
                                 <div class="fga-subheading">{{ $t('top_pages_now') }}</div>
                                 @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($p) => ['label' => $value($p['label']), 'value' => $p['value']], array_slice($live['pages'], 0, 5)), 'empty' => $t('nobody_now'), 'reserve' => 5])
+
+                                {{-- The host's own live lists (->realtimeBreakdowns()), linked as `live:<key>`. --}}
+                                @foreach ($plugin->getRealtimeBreakdowns() as $breakdown)
+                                    <div class="fga-subheading fga-mt">{{ $breakdown->getLabel() }}</div>
+                                    @include('filament-ga4-analytics::partials.list', [
+                                        'rows' => array_map(fn ($r) => [
+                                            'label' => $value($r['label'], $breakdown->getValueGroup()),
+                                            'value' => $r['value'],
+                                            'ltr' => $breakdown->isLtr(),
+                                            'url' => $this->liveLinkFor($breakdown->key, $r['label']),
+                                        ], $live['breakdowns'][$breakdown->key] ?? []),
+                                        'empty' => $breakdown->getEmptyLabel() ?? $t('nobody_now'),
+                                        'testid' => 'ga4-live-'.$breakdown->key,
+                                        'reserve' => min(5, $breakdown->getLimit()),
+                                    ])
+                                @endforeach
                             </div>
 
                             <div>
@@ -207,7 +223,7 @@
                                         'ltr' => $breakdown->isLtr(),
                                         'url' => $this->linkFor('breakdown:'.$breakdown->key, $s['range'], $r['label']),
                                     ], $rows),
-                                    'empty' => $t('no_data'),
+                                    'empty' => $breakdown->getEmptyLabel() ?? $t('no_data'),
                                     'testid' => 'ga4-breakdown-'.$breakdown->key,
                                     'reserve' => $breakdown->getLimit(),
                                 ])

@@ -22,6 +22,10 @@
         <div>
             <div class="fga-subheading">{{ $t('top_pages_now') }}</div>
             @include('filament-ga4-analytics::partials.skeleton-list', ['rows' => 5])
+            @foreach ($plugin->getRealtimeBreakdowns() as $breakdown)
+                <div class="fga-subheading fga-mt">{{ $breakdown->getLabel() }}</div>
+                @include('filament-ga4-analytics::partials.skeleton-list', ['rows' => min(5, $breakdown->getLimit())])
+            @endforeach
         </div>
         <div>
             <div class="fga-subheading">{{ $t('devices_now') }}</div>

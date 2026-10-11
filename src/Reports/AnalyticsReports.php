@@ -42,15 +42,27 @@ class AnalyticsReports
     /**
      * The last 30 minutes: active users now, per minute, and what they are on.
      *
+     * `$breakdowns` are the host's extra live lists
+     * (`Ga4AnalyticsPlugin::realtimeBreakdowns()`), answered under
+     * `breakdowns.<key>`. Realtime reports accept only GA's realtime
+     * dimensions and user-scoped custom dimensions (`customUser:…`).
+     *
+     * @param  list<Breakdown>  $breakdowns
      * @return array<string, mixed>
      */
-    public function realtime(?string $property): array
+    public function realtime(?string $property, array $breakdowns = []): array
     {
         if ($property === null) {
             return self::failure(AnalyticsUnavailable::NOT_CONFIGURED);
         }
 
-        return $this->cached("rt:{$property}", self::ttl('realtime_seconds', 25), function () use ($property): array {
+        $key = "rt:{$property}";
+
+        if ($breakdowns !== []) {
+            $key .= ':'.md5(implode('#', array_map(static fn (Breakdown $b): string => $b->fingerprint(), $breakdowns)));
+        }
+
+        return $this->cached($key, self::ttl('realtime_seconds', 25), function () use ($property, $breakdowns): array {
             $total = $this->client->runRealtimeReport($property, [
                 'metrics' => [['name' => 'activeUsers']],
             ]);
@@ -65,7 +77,9 @@ class AnalyticsReports
                 'dimensions' => [['name' => 'unifiedScreenName']],
                 'metrics' => [['name' => 'screenPageViews'], ['name' => 'activeUsers']],
                 'orderBys' => [['metric' => ['metricName' => 'screenPageViews'], 'desc' => true]],
-                'limit' => 8,
+                // More than the card lists, so a live list's fallback (codes
+                // read out of titles) has the long tail to work from.
+                'limit' => 25,
             ]);
 
             $devices = $this->client->runRealtimeReport($property, [
@@ -92,15 +106,52 @@ class AnalyticsReports
                 }
             }
 
+            $pages = self::pairs($screens);
+            $lists = [];
+
+            foreach ($breakdowns as $breakdown) {
+                $lists[$breakdown->key] = $this->liveList($property, $breakdown, $pages);
+            }
+
             return [
                 'activeUsers' => (int) ($total[0]['m'][0] ?? 0),
                 // Oldest first, so the bars read left to right as time passes.
                 'perMinute' => array_reverse($perMinute),
-                'pages' => self::pairs($screens),
+                'pages' => array_slice($pages, 0, 8),
                 'devices' => self::pairs($devices),
                 'countries' => self::pairs($countries),
+                'breakdowns' => $lists,
             ];
         });
+    }
+
+    /**
+     * One host live list. A refusal other than quota — an unregistered custom
+     * dimension answers 400 — leaves the rest of the card standing: the list
+     * falls back to the host's closure, or to nothing.
+     *
+     * @param  list<array{label: string, value: int}>  $pages
+     * @return list<array{label: string, value: int}>
+     */
+    private function liveList(string $property, Breakdown $breakdown, array $pages): array
+    {
+        try {
+            $rows = self::pairs($this->client->runRealtimeReport($property, $breakdown->request()));
+        } catch (AnalyticsUnavailable $e) {
+            if ($e->reason === AnalyticsUnavailable::QUOTA) {
+                throw $e;
+            }
+
+            Log::info('GA4 live list unavailable; using its fallback.', ['list' => $breakdown->key, 'reason' => $e->reason]);
+            $fallback = $breakdown->getFallback();
+            $rows = $fallback !== null ? $fallback($pages) : [];
+        }
+
+        if ($breakdown->hidesNotSet()) {
+            $rows = array_values(array_filter($rows, static fn (array $r): bool => ! in_array($r['label'], ['', '(not set)'], true)));
+        }
+
+        return array_slice($rows, 0, $breakdown->getLimit());
     }
 
     /**
@@ -209,15 +260,21 @@ class AnalyticsReports
      * A second property's view of staff/back-office use, for hosts that send
      * their panel traffic to its own stream.
      *
+     * `$eventPrefix` keeps the events list to the host's own (`staff_`), so
+     * GA's automatic page_view / user_engagement do not crowd them out.
+     *
      * @return array<string, mixed>
      */
-    public function staff(?string $property, DateRange $range, string $timezone): array
+    public function staff(?string $property, DateRange $range, string $timezone, ?string $eventPrefix = null): array
     {
         if ($property === null) {
             return self::failure(AnalyticsUnavailable::NOT_CONFIGURED);
         }
 
-        return $this->cached("staff:{$property}:{$range->key()}", self::ttl('report_seconds', 300), function () use ($property, $range, $timezone): array {
+        $eventPrefix = $eventPrefix === '' ? null : $eventPrefix;
+        $key = "staff:{$property}:{$range->key()}".($eventPrefix !== null ? ':'.md5($eventPrefix) : '');
+
+        return $this->cached($key, self::ttl('report_seconds', 300), function () use ($property, $range, $timezone, $eventPrefix): array {
             $base = ['dateRanges' => [$range->toGa()]];
 
             $t = $this->client->runReport($property, $base + [
@@ -229,7 +286,12 @@ class AnalyticsReports
                 'metrics' => [['name' => 'eventCount']],
                 'orderBys' => [['metric' => ['metricName' => 'eventCount'], 'desc' => true]],
                 'limit' => 15,
-            ]);
+            ] + ($eventPrefix === null ? [] : [
+                'dimensionFilter' => ['filter' => [
+                    'fieldName' => 'eventName',
+                    'stringFilter' => ['matchType' => 'BEGINS_WITH', 'value' => $eventPrefix],
+                ]],
+            ]));
 
             $pages = $this->client->runReport($property, $base + [
                 'dimensions' => [['name' => 'pageTitle']],

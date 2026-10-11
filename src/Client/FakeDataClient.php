@@ -95,6 +95,14 @@ class FakeDataClient implements DataClient
             $first = array_values(array_intersect($first, $filter));
         }
 
+        $prefix = self::beginsWithFilter($body);
+
+        if ($prefix !== null) {
+            // A host's own namespaced events (`staff_save`…), which the
+            // canned pool cannot know: invent a few under the prefix.
+            $first = array_map(static fn (string $action): string => $prefix.$action, ['save', 'approve', 'export', 'create']);
+        }
+
         $rows = [];
 
         foreach ($first as $i => $value) {
@@ -167,6 +175,16 @@ class FakeDataClient implements DataClient
         $values = $body['dimensionFilter']['filter']['inListFilter']['values'] ?? null;
 
         return is_array($values) ? array_values(array_map('strval', $values)) : null;
+    }
+
+    /** @param  array<string, mixed>  $body */
+    private static function beginsWithFilter(array $body): ?string
+    {
+        $filter = $body['dimensionFilter']['filter']['stringFilter'] ?? null;
+
+        return is_array($filter) && ($filter['matchType'] ?? null) === 'BEGINS_WITH' && is_string($filter['value'] ?? null)
+            ? $filter['value']
+            : null;
     }
 
     private static function total(string $metric, int $index): float

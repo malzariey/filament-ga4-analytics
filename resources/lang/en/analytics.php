@@ -159,6 +159,7 @@ return [
 
     'errors' => [
         'not_configured' => 'No Google Analytics property id is set yet, so there are no reports to show.',
+        'disabled' => 'Reading Google Analytics is switched off in this environment.',
         'no_credentials' => 'The service-account key is missing or invalid on the server, so analytics cannot be read.',
         'forbidden' => 'Google Analytics refused the request. Check that the Analytics Data API is enabled and the service account has Viewer access to this property.',
         'quota' => 'The request quota is spent for now. The figures will be back in a few minutes.',

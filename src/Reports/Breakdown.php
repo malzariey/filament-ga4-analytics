@@ -38,6 +38,17 @@ final class Breakdown
     /** Drop GA's «(not set)» bucket from this list. */
     private bool $hideNotSet = false;
 
+    /** What the list says when it has no rows; null for the page's own wording. */
+    private string|Closure|null $emptyLabel = null;
+
+    /**
+     * Rows to show when GA refuses this list's own request (other than for
+     * quota) — live lists only. Receives the live pages.
+     *
+     * @var (Closure(list<array{label: string, value: int}>): list<array{label: string, value: int}>)|null
+     */
+    private ?Closure $fallback = null;
+
     private function __construct(public readonly string $key) {}
 
     public static function make(string $key): self
@@ -143,6 +154,31 @@ final class Breakdown
         return $this;
     }
 
+    public function emptyLabel(string|Closure|null $label): self
+    {
+        $this->emptyLabel = $label;
+
+        return $this;
+    }
+
+    /**
+     * For a live list (`Ga4AnalyticsPlugin::realtimeBreakdowns()`): what to
+     * show when GA refuses the list's own request — an unregistered custom
+     * dimension answers HTTP 400 — instead of an empty list. The closure gets
+     * the live pages (`[['label' => title, 'value' => views], …]`) and returns
+     * rows of the same shape, e.g. codes read out of the page titles. A quota
+     * refusal is never covered: it fails the whole live card, so the page
+     * stops asking.
+     *
+     * @param  (Closure(list<array{label: string, value: int}>): list<array{label: string, value: int}>)|null  $callback
+     */
+    public function fallbackUsing(?Closure $callback): self
+    {
+        $this->fallback = $callback;
+
+        return $this;
+    }
+
     public function getDimension(): string
     {
         return $this->dimension;
@@ -178,6 +214,19 @@ final class Breakdown
         return $this->hideNotSet;
     }
 
+    public function getEmptyLabel(): ?string
+    {
+        $label = $this->emptyLabel instanceof Closure ? ($this->emptyLabel)() : $this->emptyLabel;
+
+        return is_string($label) && $label !== '' ? $label : null;
+    }
+
+    /** @return (Closure(list<array{label: string, value: int}>): list<array{label: string, value: int}>)|null */
+    public function getFallback(): ?Closure
+    {
+        return $this->fallback;
+    }
+
     /** The heading: the host's own, else `breakdowns.<key>`, else the key. */
     public function getLabel(): string
     {
@@ -198,7 +247,7 @@ final class Breakdown
     /** What makes two breakdowns the same GA request — for cache keys. */
     public function fingerprint(): string
     {
-        return implode('|', [$this->key, $this->dimension, $this->metric, $this->limit, (int) $this->hideNotSet]);
+        return implode('|', [$this->key, $this->dimension, $this->metric, $this->limit, (int) $this->hideNotSet, (int) ($this->fallback !== null)]);
     }
 
     /** @return array<string, mixed> the request body, without the date range */
