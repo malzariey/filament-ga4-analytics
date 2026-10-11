@@ -25,6 +25,14 @@
     }
     .fga-grid-auto { grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); }
     .fga-kpis { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr)); }
+    /* Balanced rows, never a lone tile: half the tiles per row (7 → 4 + 3)
+       until the content is wide enough for every tile in one row. */
+    @media (min-width: 768px) {
+        .fga-kpis[style*="--fga-kpi-count"] { grid-template-columns: repeat(var(--fga-kpi-half), minmax(0, 1fr)); }
+    }
+    @media (min-width: 1536px) {
+        .fga-kpis[style*="--fga-kpi-count"] { grid-template-columns: repeat(var(--fga-kpi-count), minmax(0, 1fr)); }
+    }
 
     .fga-toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 1rem; }
     .fga-toolbar .fi-tabs { max-width: 100%; }

@@ -110,7 +110,7 @@
                 </x-filament::section>
             @else
                 @if ($s['totals'] !== [])
-                    <div class="fga-kpis" data-testid="ga4-kpis">
+                    <div class="fga-kpis" @include('filament-ga4-analytics::partials.kpi-columns', ['count' => count($plugin->getReportPlan()->kpis)]) data-testid="ga4-kpis">
                         @foreach ($plugin->getReportPlan()->kpis as $kpi)
                             @php($raw = (float) ($s['totals'][$kpi->value] ?? 0))
                             @include('filament-ga4-analytics::partials.tile', [
@@ -258,7 +258,7 @@
                     <div class="fga-empty" data-testid="ga4-staff-error">{{ $errorText($st['error'] ?? null) }}</div>
                 </x-filament::section>
             @else
-                <div class="fga-kpis" data-testid="ga4-staff">
+                <div class="fga-kpis" @include('filament-ga4-analytics::partials.kpi-columns', ['count' => 3]) data-testid="ga4-staff">
                     @include('filament-ga4-analytics::partials.tile', ['label' => $t('kpis.staff'), 'value' => $fmt($st['totals']['staff']), 'url' => null, 'suffix' => null])
                     @include('filament-ga4-analytics::partials.tile', ['label' => $t('kpis.staff_views'), 'value' => $fmt($st['totals']['views']), 'url' => null, 'suffix' => null])
                     @include('filament-ga4-analytics::partials.tile', ['label' => $t('kpis.staff_minutes'), 'value' => $fmt($st['totals']['engagedMinutes']), 'url' => null, 'suffix' => null])

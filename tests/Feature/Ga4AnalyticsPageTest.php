@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Filament\Facades\Filament;
 use Livewire\Livewire;
+use Malzariey\FilamentGa4Analytics\Ga4AnalyticsPlugin;
 use Malzariey\FilamentGa4Analytics\Pages\Ga4AnalyticsPage;
 use Malzariey\FilamentGa4Analytics\Reports\Breakdown;
 
@@ -279,4 +280,16 @@ it('takes its navigation from the plugin', function (): void {
 
     expect(Ga4AnalyticsPage::getSlug())->toBe('analytics/reports')
         ->and(Ga4AnalyticsPage::getNavigationLabel())->toBe('GA');
+});
+
+it('splits seven tiles into balanced rows, in the skeleton and the loaded page alike', function (): void {
+    fakeClient();
+    $this->actingAs(allowedUser());
+
+    $count = count(Ga4AnalyticsPlugin::get()->getReportPlan()->kpis);
+    $half = $count <= 4 ? $count : (int) ceil($count / 2);
+    $columns = "--fga-kpi-count: {$count}; --fga-kpi-half: {$half};";
+
+    $this->get(Ga4AnalyticsPage::getUrl())->assertSee($columns, false);
+    loadedPage()->assertSee($columns, false);
 });

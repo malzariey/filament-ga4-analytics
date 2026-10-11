@@ -11,7 +11,7 @@
 <span class="fga-sr-only" role="status">{{ $t('loading') }}</span>
 
 @if ($plan->kpis !== [])
-    <div class="fga-kpis" aria-hidden="true" data-testid="ga4-kpis-skeleton">
+    <div class="fga-kpis" @include('filament-ga4-analytics::partials.kpi-columns', ['count' => count($plan->kpis)]) aria-hidden="true" data-testid="ga4-kpis-skeleton">
         @foreach ($plan->kpis as $kpi)
             <div class="fga-tile">
                 <div class="fga-label">{{ $t('kpis.'.$kpi->value) }}</div>
