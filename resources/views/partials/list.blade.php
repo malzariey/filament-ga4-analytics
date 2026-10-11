@@ -1,6 +1,6 @@
 {{-- A ranked label → count list. Rows: label, value, optional url, optional ltr. --}}
 @php($max = max(1, ...array_map(fn ($r) => (int) $r['value'], $rows ?: [['value' => 1]])))
-<ul class="fga-list" @isset($testid) data-testid="{{ $testid }}" @endisset>
+<ul class="fga-list" @isset($testid) data-testid="{{ $testid }}" @endisset @if (! empty($reserve)) style="--fga-rows: {{ (int) $reserve }}" @endif>
     @forelse ($rows as $row)
         <li>
             <div class="fga-row">

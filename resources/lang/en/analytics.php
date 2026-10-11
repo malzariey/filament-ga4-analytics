@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 return [
+    'loading' => 'Loading analytics…',
+    'refreshing' => 'Refreshing…',
     'navigation_label' => 'Google Analytics reports',
     'open_in_google' => 'Open in Google Analytics',
 

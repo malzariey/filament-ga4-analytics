@@ -3,6 +3,8 @@
 declare(strict_types=1);
 
 return [
+    'loading' => 'جارٍ تحميل التحليلات…',
+    'refreshing' => 'يتحدّث…',
     'navigation_label' => 'تقارير Google Analytics',
     'open_in_google' => 'فتح في Google Analytics',
 

@@ -57,6 +57,17 @@ class Ga4AnalyticsPage extends Page implements HasForms
     /** @var array<string, mixed>|null */
     public ?array $data = [];
 
+    /**
+     * False on the first render: the shell paints at once, every GA-backed
+     * section draws its skeleton, and `wire:init` calls `loadReports()` right
+     * after first paint — one round trip, then each section reads its report
+     * (through the shared cache) exactly as before.
+     */
+    public bool $loaded = false;
+
+    /** Range actions and properties that show the page-wide progress state. */
+    public const string RANGE_TARGETS = 'setRange, setTab, data.period, loadReports';
+
     public static function plugin(?Panel $panel = null): Ga4AnalyticsPlugin
     {
         return Ga4AnalyticsPlugin::get($panel);
@@ -156,6 +167,18 @@ class Ga4AnalyticsPage extends Page implements HasForms
         ];
     }
 
+    public function loadReports(): void
+    {
+        $this->loaded = true;
+    }
+
+    /**
+     * What the live block's poll calls. A named no-op rather than `$refresh`
+     * so `wire:target` can tell a poll from a range change: only the live
+     * card shows anything while it runs, never the page-wide progress bar.
+     */
+    public function refreshLive(): void {}
+
     public function setRange(string $range): void
     {
         if (in_array($range, DateRange::PRESETS, true)) {
@@ -177,15 +200,29 @@ class Ga4AnalyticsPage extends Page implements HasForms
         return DateRange::fromState($this->range, $this->period, static::plugin()->getDefaultRange());
     }
 
-    /** @return array<string, mixed> */
+    /**
+     * The reports below never run before `loadReports()`: a first render that
+     * called Google would defeat the deferred load. The guards are here, not
+     * only in the view, so no view override can bring the cost back.
+     *
+     * @return array<string, mixed>
+     */
     public function live(): array
     {
+        if (! $this->loaded) {
+            return [];
+        }
+
         return $this->reports()->realtime(static::plugin()->getPropertyId());
     }
 
     /** @return array<string, mixed> */
     public function summary(): array
     {
+        if (! $this->loaded) {
+            return [];
+        }
+
         $plugin = static::plugin();
 
         return $this->reports()->summary($plugin->getPropertyId(), $this->dateRange(), $plugin->getReportPlan(), $plugin->getTimezone());
@@ -194,6 +231,10 @@ class Ga4AnalyticsPage extends Page implements HasForms
     /** @return array<string, mixed> */
     public function staff(): array
     {
+        if (! $this->loaded) {
+            return [];
+        }
+
         $plugin = static::plugin();
 
         return $this->reports()->staff($plugin->getStaffPropertyId(), $this->dateRange(), $plugin->getTimezone());

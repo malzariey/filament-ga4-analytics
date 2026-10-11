@@ -9,18 +9,32 @@
     $value = fn (string $v, ?string $group = null): string => \Malzariey\FilamentGa4Analytics\Ga4AnalyticsPlugin::valueLabel($v, $group);
     $hasStaff = $plugin->getStaffPropertyId() !== null;
     $reportMinutes = max(1, (int) round(((int) config('filament-ga4-analytics.cache.report_seconds', 300)) / 60));
+    // Everything that shows the page-wide progress state. The live poll calls
+    // `refreshLive`, which is deliberately NOT in this list.
+    $rangeTargets = \Malzariey\FilamentGa4Analytics\Pages\Ga4AnalyticsPage::RANGE_TARGETS;
 @endphp
 
 <x-filament-panels::page>
-    <div class="fga">
+    {{-- Deferred load: the first render is the shell and skeletons only; this
+         asks for the data right after first paint, in one round trip. --}}
+    <div class="fga" @if (! $loaded) wire:init="loadReports" @endif>
+        {{-- Thin page-top bar while a range change (or the first load) is in flight. --}}
+        <div class="fga-progress" wire:loading.delay.shortest wire:target="{{ $rangeTargets }}"
+             role="progressbar" aria-label="{{ $t('loading') }}" aria-busy="true"><span></span></div>
+
         {{-- ── Live: re-rendered on a poll from a cache shared by everyone watching ── --}}
         @if ($plugin->showsRealtime())
-            <div wire:poll.{{ $plugin->getRealtimePollSeconds() }}s>
+            <div @if ($loaded) wire:poll.{{ $plugin->getRealtimePollSeconds() }}s="refreshLive" @endif>
+                @if (! $loaded)
+                    @include('filament-ga4-analytics::partials.skeleton-live')
+                @else
                 @php($live = $this->live())
                 <x-filament::section icon="heroicon-o-signal">
                     <x-slot name="heading">{{ $t('live_heading') }}</x-slot>
                     <x-slot name="description">
                         {{ $t('live_desc', ['seconds' => $plugin->getRealtimePollSeconds()]) }}@if ($live['ok'] ?? false) · {{ $t('updated_at') }} <bdi dir="ltr">{{ $time($live['fetchedAt'] ?? null) }}</bdi>@endif
+                        {{-- The poll's only visible trace: a small dot, never the page bar. --}}
+                        <span class="fga-live-refresh" wire:loading.class="fga-on" wire:target="refreshLive"><span class="fga-dot" aria-hidden="true"></span>{{ $t('refreshing') }}</span>
                     </x-slot>
 
                     @if (! ($live['ok'] ?? false))
@@ -43,27 +57,28 @@
 
                             <div>
                                 <div class="fga-subheading">{{ $t('top_pages_now') }}</div>
-                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($p) => ['label' => $value($p['label']), 'value' => $p['value']], $live['pages']), 'empty' => $t('nobody_now')])
+                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($p) => ['label' => $value($p['label']), 'value' => $p['value']], array_slice($live['pages'], 0, 5)), 'empty' => $t('nobody_now'), 'reserve' => 5])
                             </div>
 
                             <div>
                                 <div class="fga-subheading">{{ $t('devices_now') }}</div>
-                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($d) => ['label' => $value($d['label'], 'devices'), 'value' => $d['value']], $live['devices']), 'empty' => $t('nobody_now')])
+                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($d) => ['label' => $value($d['label'], 'devices'), 'value' => $d['value']], array_slice($live['devices'], 0, 3)), 'empty' => $t('nobody_now'), 'reserve' => 3])
 
                                 <div class="fga-subheading fga-mt">{{ $t('countries_now') }}</div>
-                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($c) => ['label' => $value($c['label'], 'countries'), 'value' => $c['value']], $live['countries']), 'empty' => $t('nobody_now')])
+                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($c) => ['label' => $value($c['label'], 'countries'), 'value' => $c['value']], array_slice($live['countries'], 0, 3)), 'empty' => $t('nobody_now'), 'reserve' => 3])
                             </div>
                         </div>
                     @endif
                 </x-filament::section>
+                @endif
             </div>
         @endif
 
         {{-- ── Range and tab ─────────────────────────────────────────────── --}}
-        <div class="fga-toolbar">
+        <div class="fga-toolbar" wire:loading.class="fga-locked" wire:target="{{ $rangeTargets }}">
             <x-filament::tabs :contained="false">
                 @foreach (\Malzariey\FilamentGa4Analytics\Support\DateRange::PRESETS as $preset)
-                    <x-filament::tabs.item :active="$range === $preset" wire:click="setRange('{{ $preset }}')">
+                    <x-filament::tabs.item :active="$range === $preset" wire:click="setRange('{{ $preset }}')" wire:loading.attr="disabled" wire:target="{{ $rangeTargets }}">
                         {{ $t('ranges.'.$preset) }}
                     </x-filament::tabs.item>
                 @endforeach
@@ -72,10 +87,10 @@
             @if ($hasStaff)
                 <div class="fga-push">
                     <x-filament::tabs :contained="false">
-                        <x-filament::tabs.item :active="$tab === 'visitors'" wire:click="setTab('visitors')" icon="heroicon-o-users">
+                        <x-filament::tabs.item :active="$tab === 'visitors'" wire:click="setTab('visitors')" wire:loading.attr="disabled" wire:target="{{ $rangeTargets }}" icon="heroicon-o-users">
                             {{ $t('tab_visitors') }}
                         </x-filament::tabs.item>
-                        <x-filament::tabs.item :active="$tab === 'staff'" wire:click="setTab('staff')" icon="heroicon-o-briefcase">
+                        <x-filament::tabs.item :active="$tab === 'staff'" wire:click="setTab('staff')" wire:loading.attr="disabled" wire:target="{{ $rangeTargets }}" icon="heroicon-o-briefcase">
                             {{ $t('tab_staff') }}
                         </x-filament::tabs.item>
                     </x-filament::tabs>
@@ -83,7 +98,11 @@
             @endif
         </div>
 
-        @if ($tab !== 'staff')
+        {{-- Dimmed (not hidden) while a new range loads, so nothing jumps. --}}
+        <div class="fga-sections" wire:loading.delay.class="fga-busy" wire:target="setRange, setTab, data.period" data-testid="ga4-sections">
+        @if (! $loaded)
+            @include('filament-ga4-analytics::partials.skeleton-sections')
+        @elseif ($tab !== 'staff')
             @php($s = $this->summary())
             @if (! ($s['ok'] ?? false))
                 <x-filament::section>
@@ -138,7 +157,7 @@
                                         @php($stepUrl = $step['users'] > 0 ? $this->linkFor('funnel:'.$step['event'], $s['range']) : null)
                                         <div>
                                             <div class="fga-row">
-                                                <span class="fga-strong">
+                                                <span class="fga-strong fga-truncate" title="{{ $plugin->eventLabel($step['event']) }}">
                                                     @if ($stepUrl)
                                                         <a href="{{ $stepUrl }}" class="fga-link">{{ $plugin->eventLabel($step['event']) }}</a>
                                                     @else
@@ -168,6 +187,7 @@
                                     ], $s['events']),
                                     'empty' => $t('no_data'),
                                     'testid' => 'ga4-events',
+                                    'reserve' => $plugin->getReportPlan()->events === null ? $plugin->getReportPlan()->eventLimit : count($plugin->getReportPlan()->events),
                                 ])
                             </x-filament::section>
                         @endif
@@ -189,6 +209,7 @@
                                     ], $rows),
                                     'empty' => $t('no_data'),
                                     'testid' => 'ga4-breakdown-'.$breakdown->key,
+                                    'reserve' => $breakdown->getLimit(),
                                 ])
                             </x-filament::section>
                         @endforeach
@@ -198,7 +219,7 @@
                 @if (is_array($s['sources'] ?? null))
                     <x-filament::section icon="heroicon-o-megaphone">
                         <x-slot name="heading">{{ $t('sources_heading') }}</x-slot>
-                        <div class="fga-scroll">
+                        <div class="fga-scroll fga-sources">
                             <table class="fga-table" data-testid="ga4-sources">
                                 <thead>
                                     <tr>
@@ -257,6 +278,7 @@
                 </div>
             @endif
         @endif
+        </div>
     </div>
 
     @include('filament-ga4-analytics::partials.styles')

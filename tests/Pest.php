@@ -4,7 +4,12 @@ declare(strict_types=1);
 
 use Filament\Facades\Filament;
 use Illuminate\Support\Facades\Gate;
+use Livewire\Features\SupportTesting\Testable;
+use Livewire\Livewire;
+use Malzariey\FilamentGa4Analytics\Client\DataClient;
+use Malzariey\FilamentGa4Analytics\Client\FakeDataClient;
 use Malzariey\FilamentGa4Analytics\Ga4AnalyticsPlugin;
+use Malzariey\FilamentGa4Analytics\Pages\Ga4AnalyticsPage;
 use Malzariey\FilamentGa4Analytics\Tests\Fixtures\User;
 use Malzariey\FilamentGa4Analytics\Tests\TestCase;
 
@@ -64,4 +69,19 @@ function gaResponse(int $dimensions, array $rows): array
 function plugin(): Ga4AnalyticsPlugin
 {
     return Ga4AnalyticsPlugin::get(Filament::getPanel('admin'));
+}
+
+/** Bind one fake GA client for the whole test, so its request log can be counted. */
+function fakeClient(): FakeDataClient
+{
+    $fake = new FakeDataClient;
+    app()->instance(DataClient::class, $fake);
+
+    return $fake;
+}
+
+/** The page after its deferred load — what a browser shows once `wire:init` ran. */
+function loadedPage(): Testable
+{
+    return Livewire::test(Ga4AnalyticsPage::class)->call('loadReports');
 }

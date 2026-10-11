@@ -82,6 +82,21 @@ Ga4AnalyticsPlugin::make()
     ->firstDayOfWeek(6);                              // Saturday
 ```
 
+## Loading behaviour
+
+- **Deferred load.** The first render is the shell — title, header actions,
+  range controls — with a skeleton of every card, shaped like the loaded card
+  (same headings, same reserved row counts), so nothing moves when the data
+  arrives. `wire:init` then calls `loadReports()` once; no report runs before
+  it, so the first paint never waits on Google.
+- **Range changes** show a thin progress bar at the top of the viewport, dim
+  the sections being refreshed and disable the range controls
+  (`Ga4AnalyticsPage::RANGE_TARGETS`).
+- **The live poll** calls `refreshLive()`, which none of the above listens to:
+  it only lights a small «refreshing» marker on the live card.
+- `prefers-reduced-motion` stops the shimmer and the sliding bar (the bar stays
+  visible, full width).
+
 ## Caching and quota
 
 Every report is cached and shared by all viewers (`report_seconds` 300,
