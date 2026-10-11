@@ -94,14 +94,19 @@ it('drops (not set) from a breakdown that asks for it, keeping the list full', f
 });
 
 it('reads the live block into a 30-minute series, oldest first', function (): void {
-    [, $reports] = fakeReports();
+    [$fake, $reports] = fakeReports();
 
     $live = $reports->realtime('123456789');
+    $dimensions = array_map(fn (array $r): string => $r['body']['dimensions'][0]['name'] ?? '', $fake->requests);
 
     expect($live['ok'])->toBeTrue()
         ->and($live['perMinute'])->toHaveCount(30)
         ->and($live['perMinute'][29])->toBeGreaterThan(0)
-        ->and($live['activeUsers'])->toBeGreaterThan(0);
+        ->and($live['activeUsers'])->toBeGreaterThan(0)
+        // ISO codes, so the page can name countries in its own language.
+        ->and($dimensions)->toContain('countryId')
+        ->and($dimensions)->not->toContain('country')
+        ->and(array_column($live['countries'], 'label'))->toContain('SA');
 });
 
 it('keeps the page standing when Google fails, and caches the failure briefly', function (): void {

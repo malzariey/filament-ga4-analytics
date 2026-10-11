@@ -51,7 +51,7 @@
                                 @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($d) => ['label' => $value($d['label'], 'devices'), 'value' => $d['value']], $live['devices']), 'empty' => $t('nobody_now')])
 
                                 <div class="fga-subheading fga-mt">{{ $t('countries_now') }}</div>
-                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($c) => ['label' => $value($c['label']), 'value' => $c['value']], $live['countries']), 'empty' => $t('nobody_now')])
+                                @include('filament-ga4-analytics::partials.list', ['rows' => array_map(fn ($c) => ['label' => $value($c['label'], 'countries'), 'value' => $c['value']], $live['countries']), 'empty' => $t('nobody_now')])
                             </div>
                         </div>
                     @endif

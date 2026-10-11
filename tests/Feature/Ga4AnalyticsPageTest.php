@@ -61,6 +61,24 @@ it('keeps GA values in English on an English page of an Arabic-first host', func
         ->assertDontSee('جوال');
 });
 
+it('names the live countries in the page language too', function (string $locale, string $saudi): void {
+    // Only the live block lists countries here, so a hit is the live block's.
+    app()->setLocale($locale);
+    plugin()->breakdowns([Breakdown::devices()]);
+    $this->actingAs(allowedUser());
+
+    $html = $this->get(Ga4AnalyticsPage::getUrl())
+        ->assertSee(__('filament-ga4-analytics::analytics.countries_now'))
+        ->assertSee($saudi)
+        ->getContent();
+
+    expect(substr_count($html, $saudi))->toBe(1)
+        ->and($html)->not->toContain('>SA<');
+})->with([
+    ['ar', 'المملكة العربية السعودية'],
+    ['en', 'Saudi Arabia'],
+]);
+
 it('refuses a user without the permission', function (): void {
     $this->actingAs(deniedUser())
         ->get(Ga4AnalyticsPage::getUrl())

@@ -73,8 +73,10 @@ class AnalyticsReports
                 'metrics' => [['name' => 'activeUsers']],
             ]);
 
+            // The ISO code, not GA's English name — the page names it in its
+            // own language, exactly as the period's countries list does.
             $countries = $this->client->runRealtimeReport($property, [
-                'dimensions' => [['name' => 'country']],
+                'dimensions' => [['name' => 'countryId']],
                 'metrics' => [['name' => 'activeUsers']],
                 'orderBys' => [['metric' => ['metricName' => 'activeUsers'], 'desc' => true]],
                 'limit' => 8,
